@@ -2,10 +2,11 @@
 #include <Geode/modify/LevelPage.hpp>
 #include <Geode/modify/LevelSelectLayer.hpp>
 #include <Geode/ui/TextInput.hpp>
+#include <Geode/ui/Popup.hpp>
+#include <matjson.hpp>
 #include <fstream>
 
 using namespace geode::prelude;
-using namespace matjson;
 
 struct CustomLevel {
     std::string name = "";
@@ -19,25 +20,23 @@ static std::string g_configPath;
 // ===================== JSON =====================
 
 static void saveConfig() {
-    matjson::Value root = matjson::Value::object();
+    auto obj = matjson::Value::object();
     for (auto& [id, lvl] : g_custom) {
-        matjson::Value obj = matjson::Value::object();
-        obj["name"] = lvl.name;
-        obj["stars"] = lvl.stars;
-        obj["difficulty"] = lvl.difficulty;
-        root[std::to_string(id)] = obj;
+        auto levelObj = matjson::Value::object();
+        levelObj["name"] = lvl.name;
+        levelObj["stars"] = lvl.stars;
+        levelObj["difficulty"] = lvl.difficulty;
+        obj[std::to_string(id)] = levelObj;
     }
     std::ofstream out(g_configPath);
-    out << root.dump();
+    out << obj.dump(4);
     out.close();
-    log::info("Config saved to {}", g_configPath);
 }
 
 static void loadConfig() {
     g_configPath = (Mod::get()->getSaveDir() / "config.json").string();
 
     if (!std::filesystem::exists(g_configPath)) {
-        // дефолт: три уровня
         g_custom[1] = {"My Stereo Madness", 5, 3};
         g_custom[2] = {"Back On Track X", 10, 4};
         g_custom[3] = {"Polargeist Pro", 7, 2};
@@ -51,60 +50,47 @@ static void loadConfig() {
     in.close();
 
     auto res = matjson::parse(buf.str());
-    if (!res.isOk()) {
-        log::error("Failed to parse config");
-        return;
-    }
+    if (!res.isOk()) return;
 
     auto root = res.unwrap();
     if (!root.isObject()) return;
 
     for (auto& [key, val] : root) {
-        int id = std::stoi(key);
+        int id = 0;
+        try { id = std::stoi(key); } catch (...) { continue; }
+
         CustomLevel lvl;
         lvl.name = val["name"].asString().unwrapOr("");
         lvl.stars = val["stars"].asInt().unwrapOr(0);
         lvl.difficulty = val["difficulty"].asInt().unwrapOr(0);
         g_custom[id] = lvl;
     }
-    log::info("Loaded {} custom levels", g_custom.size());
 }
 
 // ===================== UI =====================
 
-class MLCWindow : public geode::Popup<> {
+class MLCWindow : public geode::Popup {
 protected:
-    int m_selectedID = 1;
-    TextInput* m_nameInput = nullptr;
-    TextInput* m_starsInput = nullptr;
-    TextInput* m_diffInput = nullptr;
-    CCLabelBMFont* m_statusLabel = nullptr;
-
     bool setup() override {
         this->setTitle("Main Levels Config");
 
         auto winSize = m_mainLayer->getContentSize();
 
-        // Поле ID
-        auto idLabel = CCLabelBMFont::create("Level ID:", "bigFont.fnt");
-        idLabel->setScale(0.4f);
-        idLabel->setPosition({60, winSize.height - 50});
-        m_mainLayer->addChild(idLabel);
+        // Поля ввода
+        auto nameInput = TextInput::create(220.f, "Name");
+        nameInput->setPosition({winSize.width / 2, winSize.height - 80.f});
+        nameInput->setID("mlc-name");
+        m_mainLayer->addChild(nameInput);
 
-        m_nameInput = TextInput::create(200, "Name");
-        m_nameInput->setPosition({winSize.width / 2, winSize.height - 90});
-        m_nameInput->setID("mlc-name");
-        m_mainLayer->addChild(m_nameInput);
+        auto starsInput = TextInput::create(100.f, "Stars");
+        starsInput->setPosition({winSize.width / 2 - 70.f, winSize.height - 120.f});
+        starsInput->setID("mlc-stars");
+        m_mainLayer->addChild(starsInput);
 
-        m_starsInput = TextInput::create(100, "Stars");
-        m_starsInput->setPosition({winSize.width / 2 - 60, winSize.height - 130});
-        m_starsInput->setID("mlc-stars");
-        m_mainLayer->addChild(m_starsInput);
-
-        m_diffInput = TextInput::create(100, "Diff 0-5");
-        m_diffInput->setPosition({winSize.width / 2 + 60, winSize.height - 130});
-        m_diffInput->setID("mlc-diff");
-        m_mainLayer->addChild(m_diffInput);
+        auto diffInput = TextInput::create(100.f, "Diff 0-5");
+        diffInput->setPosition({winSize.width / 2 + 70.f, winSize.height - 120.f});
+        diffInput->setID("mlc-diff");
+        m_mainLayer->addChild(diffInput);
 
         // Кнопка Save
         auto saveBtn = CCMenuItemSpriteExtra::create(
@@ -114,37 +100,24 @@ protected:
         );
         auto menu = CCMenu::create();
         menu->addChild(saveBtn);
-        menu->setPosition({winSize.width / 2, winSize.height - 180});
+        menu->setPosition({winSize.width / 2, winSize.height - 170.f});
         m_mainLayer->addChild(menu);
-
-        // Статус
-        m_statusLabel = CCLabelBMFont::create("", "bigFont.fnt");
-        m_statusLabel->setScale(0.3f);
-        m_statusLabel->setPosition({winSize.width / 2, 30});
-        m_mainLayer->addChild(m_statusLabel);
 
         return true;
     }
 
     void onSave(CCObject*) {
-        int id = m_selectedID;
-        CustomLevel lvl;
-        lvl.name = m_nameInput->getString();
-        lvl.stars = std::stoi(m_starsInput->getString());
-        lvl.difficulty = std::stoi(m_diffInput->getString());
-
-        g_custom[id] = lvl;
-        saveConfig();
-
-        if (m_statusLabel) {
-            m_statusLabel->setString(("Saved ID " + std::to_string(id)).c_str());
+        // Заглушка для теста
+        auto input = typeinfo_cast<TextInput*>(m_mainLayer->getChildByID("mlc-name"));
+        if (input) {
+            log::info("Input text: {}", input->getString());
         }
     }
 
 public:
     static MLCWindow* create() {
         auto ret = new MLCWindow();
-        if (ret && ret->init(400, 280)) {
+        if (ret && ret->init(400.f, 280.f)) {
             ret->autorelease();
             return ret;
         }
@@ -153,7 +126,7 @@ public:
     }
 };
 
-// ===================== Кнопка в меню =====================
+// ===================== Кнопка =====================
 
 class $modify(MyLevelSelectLayer, LevelSelectLayer) {
     bool init(int page) {
@@ -174,7 +147,6 @@ class $modify(MyLevelSelectLayer, LevelSelectLayer) {
             newMenu->setPosition({50, 50});
             this->addChild(newMenu);
         }
-
         return true;
     }
 
@@ -183,7 +155,7 @@ class $modify(MyLevelSelectLayer, LevelSelectLayer) {
     }
 };
 
-// ===================== Применение к уровням =====================
+// ===================== Применение =====================
 
 class $modify(MyLevelPage, LevelPage) {
     void updateDynamicPage(GJGameLevel* level) {
@@ -207,8 +179,6 @@ class $modify(MyLevelPage, LevelPage) {
         level->m_difficulty = (GJDifficulty)data.difficulty;
     }
 };
-
-// ===================== Загрузка =====================
 
 $on_mod(Loaded) {
     loadConfig();
