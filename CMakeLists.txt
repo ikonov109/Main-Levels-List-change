@@ -5,7 +5,7 @@ project(MainLevelsListChange)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/geode-sdk-clone/cmake/Geode.cmake)
+include($ENV{GEODE_SDK}/cmake/Geode.cmake)
 
 add_library(${PROJECT_NAME} SHARED
     src/main.cpp
