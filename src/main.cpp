@@ -1,5 +1,5 @@
 #include <Geode/Geode.hpp>
-#include <Geode/modify/LevelTools.hpp>
+#include <Geode/modify/LevelPage.hpp>
 
 using namespace geode::prelude;
 
@@ -15,29 +15,26 @@ static std::unordered_map<int, CustomLevel> g_custom = {
     {3, {"Polargeist Pro", 7, 2}},
 };
 
-class $modify(MyLevelTools, LevelTools) {
-    static gd::string getName(int id) {
-        auto it = g_custom.find(id);
-        if (it != g_custom.end())
-            return gd::string(it->second.name);
-        return LevelTools::getName(id);
-    }
+class $modify(MyLevelPage, LevelPage) {
+    void updateDynamicPage(GJGameLevel* level) {
+        LevelPage::updateDynamicPage(level);
 
-    static int getStars(int id) {
-        auto it = g_custom.find(id);
-        if (it != g_custom.end())
-            return it->second.stars;
-        return LevelTools::getStars(id);
-    }
+        if (!level) return;
 
-    static int getDifficulty(int id) {
+        int id = level->m_levelID;
         auto it = g_custom.find(id);
-        if (it != g_custom.end())
-            return it->second.difficulty;
-        return LevelTools::getDifficulty(id);
+        if (it == g_custom.end()) return;
+
+        auto& data = it->second;
+
+        if (auto nameLabel = this->getChildByID("level-name")) {
+            if (auto lbl = typeinfo_cast<CCLabelBMFont*>(nameLabel)) {
+                lbl->setString(data.name.c_str());
+            }
+        }
+
+        level->m_levelName = data.name;
+        level->m_stars = data.stars;
+        level->m_difficulty = (GJDifficulty)data.difficulty;
     }
 };
-
-$on_mod(Loaded) {
-    log::info("Main Levels List Change loaded");
-}
