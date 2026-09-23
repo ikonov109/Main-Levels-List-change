@@ -75,13 +75,12 @@ protected:
     TextInput* m_nameInput = nullptr;
     TextInput* m_starsInput = nullptr;
     TextInput* m_diffInput = nullptr;
+    CCLabelBMFont* m_statusLabel = nullptr;
 
     bool init(float width, float height) {
-        if (!Popup::init(width, height))
-            return false;
+        if (!Popup::init(width, height)) return false;
 
         this->setTitle("Main Levels Config");
-
         auto winSize = m_mainLayer->getContentSize();
 
         m_idInput = TextInput::create(80.f, "ID");
@@ -104,24 +103,66 @@ protected:
         m_diffInput->setID("mlc-diff");
         m_mainLayer->addChild(m_diffInput);
 
+        auto addBtn = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("Add"),
+            this, menu_selector(MLCWindow::onAdd));
+
         auto saveBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Save"),
-            this,
-            menu_selector(MLCWindow::onSave)
-        );
+            this, menu_selector(MLCWindow::onSave));
+
+        auto removeBtn = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("Remove"),
+            this, menu_selector(MLCWindow::onRemove));
+
+        auto resetBtn = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("Reset"),
+            this, menu_selector(MLCWindow::onReset));
+
+        auto loadBtn = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("Load"),
+            this, menu_selector(MLCWindow::onLoad));
+
         auto menu = CCMenu::create();
+        menu->addChild(addBtn);
         menu->addChild(saveBtn);
-        menu->setPosition({winSize.width / 2, winSize.height - 175.f});
+        menu->addChild(removeBtn);
+        menu->addChild(resetBtn);
+        menu->addChild(loadBtn);
+        menu->alignItemsHorizontallyWithPadding(6.f);
+        menu->setPosition({winSize.width / 2, winSize.height - 180.f});
         m_mainLayer->addChild(menu);
+
+        m_statusLabel = CCLabelBMFont::create("", "bigFont.fnt");
+        m_statusLabel->setScale(0.35f);
+        m_statusLabel->setPosition({winSize.width / 2, 25.f});
+        m_mainLayer->addChild(m_statusLabel);
 
         return true;
     }
 
-    void onSave(CCObject*) {
-        if (!m_idInput || !m_nameInput || !m_starsInput || !m_diffInput) return;
+    void setStatus(const char* text) {
+        if (m_statusLabel) m_statusLabel->setString(text);
+    }
+
+    void onAdd(CCObject*) {
+        if (!m_idInput || !m_nameInput) return;
 
         int id = 0;
-        try { id = std::stoi(m_idInput->getString()); } catch (...) { return; }
+        try { id = std::stoi(m_idInput->getString()); } catch (...) {
+            setStatus("Invalid ID");
+            return;
+        }
+
+        if (id <= 1000) {
+            setStatus("Add needs ID > 1000");
+            return;
+        }
+
+        if (g_custom.find(id) != g_custom.end()) {
+            setStatus("ID exists. Use Save");
+            return;
+        }
 
         CustomLevel lvl;
         lvl.name = m_nameInput->getString();
@@ -130,14 +171,83 @@ protected:
 
         g_custom[id] = lvl;
         saveConfig();
+        setStatus("Added! Restart GD");
+        log::info("Added ID {}: {}", id, lvl.name);
+    }
 
+    void onSave(CCObject*) {
+        if (!m_idInput || !m_nameInput) return;
+
+        int id = 0;
+        try { id = std::stoi(m_idInput->getString()); } catch (...) {
+            setStatus("Invalid ID");
+            return;
+        }
+
+        CustomLevel lvl;
+        lvl.name = m_nameInput->getString();
+        try { lvl.stars = std::stoi(m_starsInput->getString()); } catch (...) { lvl.stars = 0; }
+        try { lvl.difficulty = std::stoi(m_diffInput->getString()); } catch (...) { lvl.difficulty = 0; }
+
+        g_custom[id] = lvl;
+        saveConfig();
+        setStatus("Saved! Restart GD");
         log::info("Saved ID {}: {}", id, lvl.name);
+    }
+
+    void onRemove(CCObject*) {
+        if (!m_idInput) return;
+
+        int id = 0;
+        try { id = std::stoi(m_idInput->getString()); } catch (...) {
+            setStatus("Invalid ID");
+            return;
+        }
+
+        auto it = g_custom.find(id);
+        if (it == g_custom.end()) {
+            setStatus("ID not found");
+            return;
+        }
+
+        g_custom.erase(it);
+        saveConfig();
+        setStatus("Removed! Restart GD");
+        log::info("Removed ID {}", id);
+    }
+
+    void onReset(CCObject*) {
+        g_custom.clear();
+        saveConfig();
+        setStatus("Reset! Restart GD");
+        log::info("Reset all custom levels");
+    }
+
+    void onLoad(CCObject*) {
+        if (!m_idInput) return;
+
+        int id = 0;
+        try { id = std::stoi(m_idInput->getString()); } catch (...) {
+            setStatus("Invalid ID");
+            return;
+        }
+
+        auto it = g_custom.find(id);
+        if (it == g_custom.end()) {
+            setStatus("ID not found");
+            return;
+        }
+
+        m_nameInput->setString(it->second.name);
+        m_starsInput->setString(std::to_string(it->second.stars));
+        m_diffInput->setString(std::to_string(it->second.difficulty));
+        setStatus("Loaded!");
     }
 
 public:
     static MLCWindow* create() {
         auto ret = new MLCWindow();
-        if (ret && ret->init(420.f, 280.f)) {
+        if (ret && ret->init(500.f, 300.f)) {
             ret->autorelease();
             return ret;
         }
@@ -205,8 +315,6 @@ class $modify(MyLevelTools, LevelTools) {
             level->m_coins = 0;
             level->m_levelLength = 3;
             level->m_isUploaded = false;
-
-            log::info("Created custom level ID {}: {}", id, it->second.name);
             return level;
         }
 
