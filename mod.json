@@ -8,7 +8,7 @@
     },
     "id": "musikwe.main-levels-list-change",
     "name": "Main Levels List Change",
-    "version": "v2.0.1",
+    "version": "v2.0.2",
     "developer": "MusikWe",
     "description": "Изменяет названия, звёзды и сложность официальных уровней",
     "dependencies": {
